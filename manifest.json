@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Tradutor Libras - Extensão PoC",
+  "version": "1.0",
+  "description": "Captura legendas (ou áudio) de reuniões web e aciona o VLibras automaticamente.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Tradutor Libras"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://teams.microsoft.com/*",
+        "https://*.zoom.us/*",
+        "https://*.youtube.com/*",
+        "<all_urls>"
+      ],
+      "js": ["contentScript.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
