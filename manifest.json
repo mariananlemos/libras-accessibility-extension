@@ -1,19 +1,24 @@
 {
   "manifest_version": 3,
   "name": "Tradutor Libras - Reunioes",
-  "version": "2.0",
-  "description": "Traduz legendas de reunioes online para Libras usando VLibras",
+  "version": "2.1",
+  "description": "Traduz legendas de reunioes online para Libras usando VLibras com avatar 3D integrado",
   "minimum_chrome_version": "116",
   "permissions": [
     "sidePanel",
     "storage",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
     "https://meet.google.com/*",
     "https://teams.microsoft.com/*",
     "https://*.zoom.us/*",
-    "https://*.youtube.com/*"
+    "https://*.youtube.com/*",
+    "https://vlibras.gov.br/*",
+    "https://*.vlibras.gov.br/*",
+    "https://traducao2.vlibras.gov.br/*",
+    "https://dicionario2.vlibras.gov.br/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -47,5 +52,14 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*", "styles.css"],
+      "matches": ["https://meet.google.com/*", "https://teams.microsoft.com/*", "https://*.zoom.us/*"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
   }
 }

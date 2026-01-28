@@ -1,6 +1,6 @@
 /**
  * Side Panel Script
- * Gerencia a exibicao de legendas e integracao com VLibras via iframe
+ * Gerencia a exibicao de legendas e controle do VLibras Widget integrado na pagina
  */
 
 // ===============================
@@ -11,7 +11,9 @@ const state = {
   currentCaption: null,
   captionHistory: [],
   maxHistoryItems: 50,
-  lastTranslatedText: ''
+  lastTranslatedText: '',
+  autoTranslate: false,
+  currentTabId: null
 };
 
 // ===============================
@@ -28,7 +30,8 @@ const elements = {
   btnTranslate: null,
   platformInfo: null,
   vlibrasFrame: null,
-  vlibrasOverlay: null
+  vlibrasOverlay: null,
+  autoTranslateToggle: null
 };
 
 // ===============================
@@ -49,49 +52,69 @@ document.addEventListener('DOMContentLoaded', () => {
   elements.platformInfo = document.getElementById('platform-info');
   elements.vlibrasFrame = document.getElementById('vlibras-frame');
   elements.vlibrasOverlay = document.getElementById('vlibras-overlay');
+  elements.autoTranslateToggle = document.getElementById('auto-translate-toggle');
 
   // Configura listeners
   setupListeners();
 
+  // Obtem tab atual
+  getCurrentTab();
+
   // Verifica legendas existentes
   checkExistingCaption();
 
-  updateStatus('connected', 'Pronto - aguardando legendas');
+  updateStatus('connected', 'Pronto - VLibras ativo na página');
   console.log('[SidePanel] Inicializado com sucesso');
 });
 
 // ===============================
-// Traducao via VLibras
+// Obtem tab atual
 // ===============================
 
-function translateText(text) {
+async function getCurrentTab() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab) {
+      state.currentTabId = tab.id;
+    }
+  } catch (error) {
+    console.error('[SidePanel] Erro ao obter tab:', error);
+  }
+}
+
+// ===============================
+// Traducao via VLibras integrado
+// ===============================
+
+async function translateText(text) {
   if (!text || text.trim().length < 2) {
     console.log('[SidePanel] Texto muito curto, ignorando');
     return;
   }
 
-  console.log('[SidePanel] Preparando traducao:', text);
+  console.log('[SidePanel] Enviando para tradução:', text);
   state.lastTranslatedText = text;
+  updateStatus('translating', 'Traduzindo para Libras...');
 
-  // Abre o VLibras em nova aba com o texto
-  // O VLibras web permite traducao direta
-  const vlibrasUrl = `https://www.vlibras.gov.br/`;
-  
-  // Copia o texto para a area de transferencia para o usuario colar no VLibras
-  navigator.clipboard.writeText(text).then(() => {
-    updateStatus('translating', 'Texto copiado! Cole no VLibras');
+  try {
+    // Envia mensagem para o content script traduzir no widget
+    if (state.currentTabId) {
+      await chrome.tabs.sendMessage(state.currentTabId, {
+        type: 'translate_text',
+        text: text
+      });
+      
+      setTimeout(() => {
+        updateStatus('connected', 'Tradução enviada');
+      }, 2000);
+    }
+  } catch (error) {
+    console.error('[SidePanel] Erro ao traduzir:', error);
+    updateStatus('error', 'Erro na tradução');
     
-    // Abre o VLibras
-    window.open(vlibrasUrl, '_blank');
-    
-    setTimeout(() => {
-      updateStatus('connected', 'Pronto');
-    }, 3000);
-  }).catch(err => {
-    console.error('[SidePanel] Erro ao copiar:', err);
-    // Fallback: abre VLibras mesmo assim
-    window.open(vlibrasUrl, '_blank');
-  });
+    // Fallback: tenta recarregar a conexão
+    await getCurrentTab();
+  }
 }
 
 // ===============================
@@ -124,6 +147,11 @@ function displayCaption(captionData) {
 
   // Adiciona ao historico
   addToHistory({ text, speaker, timestamp: Date.now() });
+
+  // Auto-traduz se habilitado
+  if (state.autoTranslate) {
+    translateText(text);
+  }
 
   updateStatus('connected', 'Legenda recebida');
 }
@@ -210,12 +238,20 @@ function setupListeners() {
     });
   }
 
+  // Toggle de tradução automática
+  if (elements.autoTranslateToggle) {
+    elements.autoTranslateToggle.addEventListener('change', (e) => {
+      state.autoTranslate = e.target.checked;
+      console.log('[SidePanel] Tradução automática:', state.autoTranslate ? 'ativada' : 'desativada');
+    });
+  }
+
   // Botao limpar historico
   if (elements.clearHistory) {
     elements.clearHistory.addEventListener('click', clearHistory);
   }
 
-  // Clique no historico para selecionar
+  // Clique no historico para selecionar e traduzir
   if (elements.captionHistory) {
     elements.captionHistory.addEventListener('click', (e) => {
       const historyItem = e.target.closest('.history-item');
@@ -223,6 +259,8 @@ function setupListeners() {
         const text = historyItem.dataset.text;
         if (text && elements.currentCaption) {
           elements.currentCaption.textContent = text;
+          // Traduz ao clicar no histórico
+          translateText(text);
         }
       }
     });

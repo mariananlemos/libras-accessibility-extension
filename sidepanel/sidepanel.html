@@ -21,18 +21,24 @@
 
   <!-- Container principal -->
   <main class="main-content">
-    <!-- Area do VLibras via iframe -->
-    <section class="vlibras-section">
-      <iframe 
-        id="vlibras-frame"
-        src="https://vlibras.gov.br/app" 
-        title="VLibras Tradutor"
-        allow="autoplay"
-        sandbox="allow-scripts allow-same-origin allow-popups"
-      ></iframe>
-      <div class="vlibras-overlay" id="vlibras-overlay">
-        <p>Clique em "Traduzir" para enviar o texto ao VLibras</p>
+    <!-- Aviso sobre VLibras integrado -->
+    <section class="vlibras-info-section">
+      <div class="vlibras-info-card">
+        <span class="vlibras-info-icon">✨</span>
+        <div class="vlibras-info-text">
+          <strong>VLibras integrado!</strong>
+          <p>O avatar aparece diretamente na página da reunião. Use o widget flutuante para traduzir.</p>
+        </div>
       </div>
+    </section>
+
+    <!-- Controles de tradução -->
+    <section class="translation-controls">
+      <label class="auto-translate-label">
+        <input type="checkbox" id="auto-translate-toggle">
+        <span class="toggle-slider"></span>
+        <span class="toggle-text">Tradução automática</span>
+      </label>
     </section>
 
     <!-- Area da legenda atual -->
@@ -49,7 +55,7 @@
     <!-- Historico de legendas -->
     <section class="history-section">
       <div class="history-header">
-        <span class="history-label">Historico</span>
+        <span class="history-label">Histórico (clique para traduzir)</span>
         <button id="clear-history" class="btn-clear" title="Limpar historico">🗑️</button>
       </div>
       <div id="caption-history" class="caption-history">
@@ -64,8 +70,8 @@
       <span id="platform-info">Plataforma: --</span>
     </div>
     <div class="footer-actions">
-      <button id="btn-translate" class="btn-action" title="Abrir VLibras para traduzir">
-        🤟 Traduzir no VLibras
+      <button id="btn-translate" class="btn-action" title="Traduzir legenda atual">
+        🤟 Traduzir Agora
       </button>
     </div>
   </footer>

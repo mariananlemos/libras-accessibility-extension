@@ -1,7 +1,548 @@
 /**
- * Content Script - Captura de Legendas
- * Captura legendas de plataformas de reunião e envia para o Side Panel
+ * Content Script - Captura de Legendas + VLibras Widget
+ * Captura legendas de plataformas de reunião e traduz para Libras usando o VLibras
  */
+
+// ===============================
+// Configurações do VLibras
+// ===============================
+
+const VLIBRAS_CONFIG = {
+  pluginUrl: 'https://vlibras.gov.br/app/vlibras-plugin.js',
+  rootPath: 'https://vlibras.gov.br/app',
+  translatorUrl: 'https://traducao2.vlibras.gov.br/translate',
+  dictionaryUrl: 'https://dicionario2.vlibras.gov.br/2018.3.1/WEBGL/',
+  avatars: ['icaro', 'hosana', 'guga'],
+  defaultAvatar: 'icaro'
+};
+
+// ===============================
+// VLibras Widget Manager
+// ===============================
+
+class VLibrasManager {
+  constructor() {
+    this.isLoaded = false;
+    this.isTranslating = false;
+    this.container = null;
+    this.player = null;
+    this.currentText = '';
+    this.translationQueue = [];
+    this.isProcessing = false;
+  }
+
+  // Injeta o container do VLibras na página
+  async injectContainer() {
+    if (this.container) return;
+
+    // Cria o container principal do VLibras
+    this.container = document.createElement('div');
+    this.container.id = 'vlibras-meet-container';
+    this.container.innerHTML = `
+      <div id="vlibras-player-wrapper">
+        <div id="vlibras-header">
+          <span class="vlibras-title">🤟 Tradutor Libras</span>
+          <div class="vlibras-controls">
+            <button id="vlibras-minimize" title="Minimizar">−</button>
+            <button id="vlibras-close" title="Fechar">×</button>
+          </div>
+        </div>
+        <div id="vlibras-player-area">
+          <div id="vlibras-loading" class="vlibras-loading">
+            <div class="vlibras-spinner"></div>
+            <span>Carregando VLibras...</span>
+          </div>
+          <div vw class="enabled">
+            <div vw-access-button class="active"></div>
+            <div vw-plugin-wrapper>
+              <div class="vw-plugin-top-wrapper"></div>
+            </div>
+          </div>
+        </div>
+        <div id="vlibras-caption-display">
+          <span id="vlibras-current-text">Aguardando legendas...</span>
+        </div>
+        <div id="vlibras-footer">
+          <button id="vlibras-translate-btn" class="vlibras-btn" disabled>
+            🤟 Traduzir
+          </button>
+          <select id="vlibras-avatar-select">
+            <option value="icaro">Ícaro</option>
+            <option value="hosana">Hosana</option>
+            <option value="guga">Guga</option>
+          </select>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(this.container);
+    this.injectStyles();
+    this.setupEventListeners();
+    
+    console.log('[VLibras] Container injetado');
+  }
+
+  // Estilos do widget VLibras
+  injectStyles() {
+    const style = document.createElement('style');
+    style.id = 'vlibras-meet-styles';
+    style.textContent = `
+      #vlibras-meet-container {
+        position: fixed;
+        bottom: 100px;
+        right: 20px;
+        z-index: 999999;
+        font-family: 'Google Sans', 'Roboto', sans-serif;
+      }
+
+      #vlibras-player-wrapper {
+        background: linear-gradient(145deg, #ffffff, #f0f0f0);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.1);
+        overflow: hidden;
+        width: 320px;
+        transition: all 0.3s ease;
+      }
+
+      #vlibras-player-wrapper.minimized {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+
+      #vlibras-player-wrapper.minimized #vlibras-header,
+      #vlibras-player-wrapper.minimized #vlibras-player-area,
+      #vlibras-player-wrapper.minimized #vlibras-caption-display,
+      #vlibras-player-wrapper.minimized #vlibras-footer {
+        display: none;
+      }
+
+      #vlibras-player-wrapper.minimized::after {
+        content: '🤟';
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        font-size: 28px;
+      }
+
+      #vlibras-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: linear-gradient(135deg, #0078D4 0%, #005A9E 100%);
+        color: white;
+      }
+
+      .vlibras-title {
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      .vlibras-controls button {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        margin-left: 6px;
+        font-size: 16px;
+        line-height: 1;
+        transition: background 0.2s;
+      }
+
+      .vlibras-controls button:hover {
+        background: rgba(255,255,255,0.3);
+      }
+
+      #vlibras-player-area {
+        height: 280px;
+        background: #e8e8e8;
+        position: relative;
+        overflow: hidden;
+      }
+
+      #vlibras-player-area [vw] {
+        position: relative !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+      }
+
+      #vlibras-player-area [vw-plugin-wrapper] {
+        width: 100% !important;
+        height: 100% !important;
+        float: none !important;
+        border-radius: 0 !important;
+      }
+
+      #vlibras-player-area [vw-access-button] {
+        display: none !important;
+      }
+
+      .vlibras-loading {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: #e8e8e8;
+        z-index: 10;
+      }
+
+      .vlibras-loading.hidden {
+        display: none;
+      }
+
+      .vlibras-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #ddd;
+        border-top-color: #0078D4;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 12px;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      #vlibras-caption-display {
+        padding: 12px 16px;
+        background: #f5f5f5;
+        border-top: 1px solid #e0e0e0;
+        min-height: 40px;
+        max-height: 80px;
+        overflow-y: auto;
+      }
+
+      #vlibras-current-text {
+        font-size: 13px;
+        color: #333;
+        line-height: 1.4;
+      }
+
+      #vlibras-footer {
+        display: flex;
+        gap: 8px;
+        padding: 12px 16px;
+        background: white;
+        border-top: 1px solid #e0e0e0;
+      }
+
+      .vlibras-btn {
+        flex: 1;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, #0078D4 0%, #005A9E 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 13px;
+      }
+
+      .vlibras-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,120,212,0.4);
+      }
+
+      .vlibras-btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      .vlibras-btn.translating {
+        background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+      }
+
+      #vlibras-avatar-select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 13px;
+        background: white;
+        cursor: pointer;
+      }
+
+      /* Responsividade para telas menores */
+      @media (max-width: 400px) {
+        #vlibras-meet-container {
+          right: 10px;
+          bottom: 80px;
+        }
+        #vlibras-player-wrapper {
+          width: 280px;
+        }
+        #vlibras-player-area {
+          height: 220px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Configura event listeners
+  setupEventListeners() {
+    const wrapper = this.container.querySelector('#vlibras-player-wrapper');
+    const minimizeBtn = this.container.querySelector('#vlibras-minimize');
+    const closeBtn = this.container.querySelector('#vlibras-close');
+    const translateBtn = this.container.querySelector('#vlibras-translate-btn');
+    const avatarSelect = this.container.querySelector('#vlibras-avatar-select');
+
+    minimizeBtn.addEventListener('click', () => {
+      wrapper.classList.toggle('minimized');
+    });
+
+    wrapper.addEventListener('click', (e) => {
+      if (wrapper.classList.contains('minimized') && e.target === wrapper) {
+        wrapper.classList.remove('minimized');
+      }
+    });
+
+    closeBtn.addEventListener('click', () => {
+      this.container.style.display = 'none';
+    });
+
+    translateBtn.addEventListener('click', () => {
+      if (this.currentText) {
+        this.translate(this.currentText);
+      }
+    });
+
+    avatarSelect.addEventListener('change', (e) => {
+      this.changeAvatar(e.target.value);
+    });
+  }
+
+  // Carrega o script do VLibras
+  async loadVLibrasPlugin() {
+    return new Promise((resolve, reject) => {
+      if (window.VLibras) {
+        console.log('[VLibras] Plugin já carregado');
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = VLIBRAS_CONFIG.pluginUrl;
+      script.async = true;
+      
+      script.onload = () => {
+        console.log('[VLibras] Script carregado com sucesso');
+        // Aguarda inicialização do VLibras
+        setTimeout(() => {
+          if (window.VLibras) {
+            resolve();
+          } else {
+            // Inicializa manualmente se necessário
+            this.initializeVLibrasManually();
+            resolve();
+          }
+        }, 1000);
+      };
+
+      script.onerror = (error) => {
+        console.error('[VLibras] Erro ao carregar script:', error);
+        reject(error);
+      };
+
+      document.head.appendChild(script);
+    });
+  }
+
+  // Inicializa o VLibras manualmente
+  initializeVLibrasManually() {
+    try {
+      if (typeof window.VLibras !== 'undefined' && window.VLibras) {
+        new window.VLibras.Widget({
+          rootPath: VLIBRAS_CONFIG.rootPath,
+          avatar: VLIBRAS_CONFIG.defaultAvatar,
+          position: 'R'
+        });
+      }
+    } catch (error) {
+      console.error('[VLibras] Erro na inicialização manual:', error);
+    }
+  }
+
+  // Inicializa completamente
+  async initialize() {
+    try {
+      await this.injectContainer();
+      await this.loadVLibrasPlugin();
+      
+      // Esconde loading após carregar
+      const loading = this.container.querySelector('#vlibras-loading');
+      
+      // Monitora quando o VLibras estiver pronto
+      const checkReady = setInterval(() => {
+        const vwWrapper = this.container.querySelector('[vw-plugin-wrapper]');
+        if (vwWrapper && vwWrapper.querySelector('canvas, iframe, div[vp]')) {
+          loading.classList.add('hidden');
+          this.isLoaded = true;
+          clearInterval(checkReady);
+          console.log('[VLibras] Widget pronto para uso');
+        }
+      }, 500);
+
+      // Timeout de segurança
+      setTimeout(() => {
+        clearInterval(checkReady);
+        if (!this.isLoaded) {
+          loading.innerHTML = `
+            <span style="color: #666; text-align: center; padding: 20px;">
+              ⚠️ VLibras em modo alternativo<br>
+              <small>Use o botão traduzir</small>
+            </span>
+          `;
+          this.isLoaded = true;
+        }
+      }, 15000);
+
+    } catch (error) {
+      console.error('[VLibras] Erro na inicialização:', error);
+    }
+  }
+
+  // Atualiza o texto da legenda no display
+  updateCaption(text, speaker = '') {
+    if (!this.container) return;
+    
+    const captionEl = this.container.querySelector('#vlibras-current-text');
+    const translateBtn = this.container.querySelector('#vlibras-translate-btn');
+    
+    if (captionEl) {
+      const displayText = speaker ? `${speaker}: ${text}` : text;
+      captionEl.textContent = displayText;
+      this.currentText = text;
+    }
+
+    if (translateBtn) {
+      translateBtn.disabled = !text || text.length < 2;
+    }
+  }
+
+  // Traduz texto para Libras usando a API
+  async translate(text) {
+    if (!text || this.isTranslating) return;
+
+    this.isTranslating = true;
+    const translateBtn = this.container.querySelector('#vlibras-translate-btn');
+    
+    if (translateBtn) {
+      translateBtn.textContent = '⏳ Traduzindo...';
+      translateBtn.classList.add('translating');
+    }
+
+    try {
+      // Tenta usar o VLibras Widget se disponível
+      if (window.plugin && window.plugin.translate) {
+        window.plugin.translate(text);
+        console.log('[VLibras] Traduzindo via widget:', text);
+      } else {
+        // Fallback: usa a API diretamente
+        const gloss = await this.translateToGloss(text);
+        if (gloss && window.plugin && window.plugin.play) {
+          window.plugin.play(gloss);
+        }
+      }
+    } catch (error) {
+      console.error('[VLibras] Erro na tradução:', error);
+    } finally {
+      this.isTranslating = false;
+      if (translateBtn) {
+        translateBtn.textContent = '🤟 Traduzir';
+        translateBtn.classList.remove('translating');
+      }
+    }
+  }
+
+  // Traduz texto para glosa usando a API do VLibras
+  async translateToGloss(text) {
+    try {
+      const response = await fetch(VLIBRAS_CONFIG.translatorUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: text })
+      });
+
+      if (response.ok) {
+        const gloss = await response.text();
+        console.log('[VLibras] Glosa recebida:', gloss);
+        return gloss;
+      }
+    } catch (error) {
+      console.error('[VLibras] Erro ao traduzir para glosa:', error);
+    }
+    return null;
+  }
+
+  // Tradução automática (quando habilitada)
+  async autoTranslate(text) {
+    // Adiciona à fila de tradução
+    this.translationQueue.push(text);
+    
+    if (!this.isProcessing) {
+      this.processQueue();
+    }
+  }
+
+  // Processa fila de traduções
+  async processQueue() {
+    if (this.translationQueue.length === 0) {
+      this.isProcessing = false;
+      return;
+    }
+
+    this.isProcessing = true;
+    const text = this.translationQueue.shift();
+    
+    await this.translate(text);
+    
+    // Aguarda antes de processar próxima
+    setTimeout(() => this.processQueue(), 2000);
+  }
+
+  // Muda o avatar
+  changeAvatar(avatarName) {
+    if (window.plugin && window.plugin.changeAvatar) {
+      window.plugin.changeAvatar(avatarName);
+      console.log('[VLibras] Avatar alterado para:', avatarName);
+    }
+  }
+
+  // Mostra/esconde container
+  toggle() {
+    if (this.container) {
+      this.container.style.display = 
+        this.container.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+
+  // Mostra o container
+  show() {
+    if (this.container) {
+      this.container.style.display = 'block';
+    }
+  }
+}
+
+// Instância global do VLibras Manager
+const vlibrasManager = new VLibrasManager();
 
 // ===============================
 // CaptionObserver - Classe otimizada
@@ -246,6 +787,9 @@ async function sendCaptionToSidePanel(captionData) {
       console.error('[ContentScript] Erro ao enviar legenda:', error);
     }
   }
+  
+  // Atualiza também o widget VLibras na página
+  vlibrasManager.updateCaption(captionData.text, captionData.speaker);
 }
 
 // ===============================
@@ -353,6 +897,9 @@ async function init() {
     return;
   }
 
+  // Inicializa o VLibras Widget na página
+  await vlibrasManager.initialize();
+
   // Cria badge de status
   createStatusBadge();
 
@@ -418,6 +965,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         captionObserver = null;
       }
       sendResponse({ success: true });
+      break;
+    
+    case 'toggle_vlibras':
+      vlibrasManager.toggle();
+      sendResponse({ success: true });
+      break;
+    
+    case 'translate_text':
+      if (message.text) {
+        vlibrasManager.translate(message.text);
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ error: 'No text provided' });
+      }
+      break;
+    
+    case 'change_avatar':
+      if (message.avatar) {
+        vlibrasManager.changeAvatar(message.avatar);
+        sendResponse({ success: true });
+      }
       break;
       
     default:

@@ -109,49 +109,103 @@ body {
 }
 
 /* ===============================
-   VLibras Section
+   VLibras Info Section
    =============================== */
 
-.vlibras-section {
+.vlibras-info-section {
+  flex-shrink: 0;
+}
+
+.vlibras-info-card {
+  background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid #90CAF9;
+}
+
+.vlibras-info-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.vlibras-info-text {
+  flex: 1;
+}
+
+.vlibras-info-text strong {
+  display: block;
+  color: #1565C0;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.vlibras-info-text p {
+  color: #1976D2;
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ===============================
+   Translation Controls
+   =============================== */
+
+.translation-controls {
   background: white;
   border-radius: 8px;
+  padding: 12px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  min-height: 200px;
-  max-height: 300px;
-  overflow: hidden;
-  position: relative;
 }
 
-#vlibras-frame {
-  width: 100%;
-  height: 250px;
-  border: none;
-  border-radius: 8px;
-}
-
-.vlibras-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.95);
+.auto-translate-label {
   display: flex;
   align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 20px;
-  border-radius: 8px;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
 }
 
-.vlibras-overlay p {
-  color: #666;
-  font-size: 14px;
-  margin: 0;
-}
-
-.vlibras-overlay.hidden {
+.auto-translate-label input[type="checkbox"] {
   display: none;
+}
+
+.toggle-slider {
+  width: 44px;
+  height: 24px;
+  background: #ccc;
+  border-radius: 12px;
+  position: relative;
+  transition: background 0.3s;
+  flex-shrink: 0;
+}
+
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.auto-translate-label input:checked + .toggle-slider {
+  background: #4CAF50;
+}
+
+.auto-translate-label input:checked + .toggle-slider::after {
+  transform: translateX(20px);
+}
+
+.toggle-text {
+  font-size: 14px;
+  color: #333;
 }
 
 /* ===============================
