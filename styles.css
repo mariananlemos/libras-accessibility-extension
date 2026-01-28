@@ -1,1 +1,103 @@
-#libras-ext-badge { position: fixed; right: 12px; bottom: 12px; z-index: 2147483647; }
+/**
+ * Content Script Styles
+ * Estilos para elementos injetados nas páginas
+ */
+
+/* Badge de status */
+#libras-ext-badge {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Animação de pulse para o badge */
+@keyframes libras-pulse {
+  0%, 100% { 
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+}
+
+#libras-ext-badge > div {
+  animation: libras-pulse 3s ease-in-out infinite;
+}
+
+/* Status dot dentro do badge */
+#libras-status-dot {
+  transition: background-color 0.3s ease;
+}
+
+/* Estilo quando capturando ativamente */
+#libras-ext-badge.capturing #libras-status-dot {
+  background: #4CAF50 !important;
+  box-shadow: 0 0 8px #4CAF50;
+}
+
+/* Estilo quando pausado */
+#libras-ext-badge.paused #libras-status-dot {
+  background: #FFC107 !important;
+}
+
+/* Estilo quando erro */
+#libras-ext-badge.error #libras-status-dot {
+  background: #F44336 !important;
+}
+
+/* Tooltip no hover */
+#libras-ext-badge::after {
+  content: 'Clique para abrir o painel de tradução';
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  pointer-events: none;
+}
+
+#libras-ext-badge:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Esconde badge se configuração desabilitada */
+#libras-ext-badge.hidden {
+  display: none !important;
+}
+
+/* Responsividade para telas menores */
+@media (max-width: 768px) {
+  #libras-ext-badge {
+    right: 8px;
+    bottom: 8px;
+  }
+  
+  #libras-ext-badge > div {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* Acessibilidade - respeita preferência de movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  #libras-ext-badge > div {
+    animation: none;
+  }
+  
+  #libras-status-dot {
+    animation: none !important;
+  }
+}

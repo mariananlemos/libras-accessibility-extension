@@ -1,0 +1,403 @@
+/**
+ * Side Panel Styles
+ * Estilos para o painel lateral com VLibras
+ */
+
+/* ===============================
+   Reset e Base
+   =============================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===============================
+   Header
+   =============================== */
+
+.header {
+  background: linear-gradient(135deg, #0078D4 0%, #005A9E 100%);
+  color: white;
+  padding: 12px 16px;
+  flex-shrink: 0;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.header-icon {
+  font-size: 24px;
+}
+
+.header-title h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Status Indicator */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #888;
+  animation: pulse 2s infinite;
+}
+
+.status-dot.status-connected {
+  background-color: #4CAF50;
+}
+
+.status-dot.status-translating {
+  background-color: #FFC107;
+  animation: pulse 0.5s infinite;
+}
+
+.status-dot.status-error {
+  background-color: #F44336;
+}
+
+.status-dot.status-warning {
+  background-color: #FF9800;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ===============================
+   Main Content
+   =============================== */
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+  gap: 12px;
+}
+
+/* ===============================
+   VLibras Section
+   =============================== */
+
+.vlibras-section {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  min-height: 200px;
+  max-height: 300px;
+  overflow: hidden;
+  position: relative;
+}
+
+#vlibras-container {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+}
+
+/* Ajustes para o widget VLibras */
+#vlibras-container [vw] {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#vlibras-container [vw-access-button] {
+  display: none !important;
+}
+
+#vlibras-container [vw-plugin-wrapper] {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+/* ===============================
+   Caption Section
+   =============================== */
+
+.caption-section {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 12px;
+  flex-shrink: 0;
+}
+
+.caption-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.caption-label {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.speaker-name {
+  font-size: 12px;
+  color: #0078D4;
+  font-weight: 500;
+}
+
+.current-caption {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  min-height: 60px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.current-caption:hover {
+  background: #e9ecef;
+}
+
+.current-caption:focus {
+  outline: 2px solid #0078D4;
+  outline-offset: 2px;
+}
+
+.caption-placeholder {
+  color: #888;
+  font-style: italic;
+  font-size: 14px;
+}
+
+/* ===============================
+   History Section
+   =============================== */
+
+.history-section {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100px;
+  overflow: hidden;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.history-label {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.btn-clear:hover {
+  background: #f0f0f0;
+}
+
+.caption-history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.history-item {
+  padding: 8px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.history-item:hover {
+  background: #f5f5f5;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-time {
+  font-size: 10px;
+  color: #999;
+  margin-right: 8px;
+}
+
+.history-speaker {
+  font-size: 11px;
+  color: #0078D4;
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.history-text {
+  font-size: 13px;
+  color: #333;
+  display: block;
+  margin-top: 4px;
+}
+
+/* ===============================
+   Footer
+   =============================== */
+
+.footer {
+  background: white;
+  border-top: 1px solid #eee;
+  padding: 10px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.footer-info {
+  font-size: 11px;
+  color: #888;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-action {
+  background: #0078D4;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-action:hover {
+  background: #005A9E;
+}
+
+.btn-action:active {
+  transform: translateY(1px);
+}
+
+/* ===============================
+   Scrollbar
+   =============================== */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* ===============================
+   Responsividade
+   =============================== */
+
+@media (max-height: 500px) {
+  .vlibras-section {
+    min-height: 150px;
+    max-height: 200px;
+  }
+  
+  .history-section {
+    min-height: 80px;
+  }
+}
+
+/* ===============================
+   Acessibilidade
+   =============================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot {
+    animation: none;
+  }
+  
+  * {
+    transition: none !important;
+  }
+}
+
+/* Alto contraste */
+@media (prefers-contrast: high) {
+  .current-caption {
+    border: 2px solid #333;
+  }
+  
+  .history-item {
+    border: 1px solid #666;
+  }
+}

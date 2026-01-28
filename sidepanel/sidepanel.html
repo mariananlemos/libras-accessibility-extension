@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tradutor Libras</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-title">
+      <span class="header-icon">🤟</span>
+      <h1>Tradutor Libras</h1>
+    </div>
+    <div class="header-status">
+      <span id="status-indicator" class="status-dot"></span>
+      <span id="status-text">Aguardando legendas...</span>
+    </div>
+  </header>
+
+  <!-- Container principal -->
+  <main class="main-content">
+    <!-- Área do VLibras -->
+    <section class="vlibras-section">
+      <div id="vlibras-container">
+        <!-- Widget VLibras será carregado aqui -->
+        <div vw class="enabled">
+          <div vw-access-button class="active"></div>
+          <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Área da legenda atual -->
+    <section class="caption-section">
+      <div class="caption-header">
+        <span class="caption-label">Legenda atual:</span>
+        <span id="speaker-name" class="speaker-name"></span>
+      </div>
+      <div id="current-caption" class="current-caption" tabindex="0">
+        <p class="caption-placeholder">As legendas aparecerão aqui quando você ativar as legendas na sua reunião.</p>
+      </div>
+    </section>
+
+    <!-- Histórico de legendas -->
+    <section class="history-section">
+      <div class="history-header">
+        <span class="history-label">Histórico</span>
+        <button id="clear-history" class="btn-clear" title="Limpar histórico">🗑️</button>
+      </div>
+      <div id="caption-history" class="caption-history">
+        <!-- Legendas anteriores aparecerão aqui -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer com configurações -->
+  <footer class="footer">
+    <div class="footer-info">
+      <span id="platform-info">Plataforma: --</span>
+    </div>
+    <div class="footer-actions">
+      <button id="btn-translate" class="btn-action" title="Traduzir manualmente">
+        ▶️ Traduzir
+      </button>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

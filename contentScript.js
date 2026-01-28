@@ -1,200 +1,427 @@
-(async function() {
-  // --- configurações ---
-  const LEGENDAS_CHECK_INTERVAL = 800; // ms para verificar novas legendas
-  const TIMEOUT_LEGENDAS = 3000; // ms ; se nada encontrado, ativa fallback
-  const AUDIO_CHUNK_MS = 2000; // 2s por blob
-  const DEFAULT_BACKEND = 'http://localhost:5000/upload';
+/**
+ * Content Script - Captura de Legendas
+ * Captura legendas de plataformas de reunião e envia para o Side Panel
+ */
 
-  // --- utilidades storage ---
-  async function getBackendUrl() {
-    return new Promise(resolve => {
-      chrome.storage.sync.get({ backendUrl: DEFAULT_BACKEND }, (items) => {
-        resolve(items.backendUrl);
-      });
-    });
+// ===============================
+// CaptionObserver - Classe otimizada
+// ===============================
+
+class CaptionObserver {
+  constructor(options = {}) {
+    this.onCaption = options.onCaption || (() => {});
+    this.debounceDelay = options.debounceDelay || 100;
+    this.finalizeDelay = options.finalizeDelay || 1500;
+    
+    this.observer = null;
+    this.currentContainer = null;
+    this.elementLastText = new WeakMap();
+    this.finalizationTimers = new Map();
+    this.captionIdCounter = 0;
+    this.checkInterval = null;
   }
 
-  // --- injeta VLibras (se necessário) ---
-  function injectVlibras() {
-    if (window.VLibras && window.VLibras.Widget) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://vlibras.gov.br/app/vlibras-plugin.js';
-      s.onload = () => {
-        try { new window.VLibras.Widget('https://vlibras.gov.br/app'); } catch(e) {}
-        // aguarda um pouco para widget se estabilizar
-        setTimeout(resolve, 600);
-      };
-      s.onerror = () => reject(new Error('Falha ao carregar VLibras'));
-      document.head.appendChild(s);
-    });
-  }
-
-  // --- cria div oculta para VLibras ler texto (mesma técnica do PoC) ---
-  function sendToVlibras(texto) {
-    if (!texto || texto.trim().length === 0) return;
-    const div = document.createElement('div');
-    div.setAttribute('vw-access-button', 'false');
-    div.setAttribute('vw-text', texto);
-    div.style.display = 'none';
-    document.body.appendChild(div);
-    console.log('[EXT] enviado ao VLibras:', texto);
-  }
-
-  // --- função para enviar audio blob ao backend ---
-  async function sendAudioBlobToBackend(blob) {
-    const backend = await getBackendUrl();
-    try {
-      const fd = new FormData();
-      fd.append('audio', blob, 'chunk.webm');
-
-      const resp = await fetch(backend, { method: 'POST', body: fd });
-      if (!resp.ok) {
-        console.error('[EXT] backend retornou erro', resp.statusText);
-        return null;
-      }
-      const json = await resp.json();
-      const texto = json.texto || json.text || json.result || null;
-      return texto;
-    } catch (err) {
-      console.error('[EXT] erro enviando audio ao backend', err);
-      return null;
+  // Seletores atualizados (2025/2026)
+  static SELECTORS = {
+    // Google Meet
+    meet: {
+      container: [
+        '[role="region"].vNKgIf.UDinHf',
+        '[role="region"][aria-label="Captions"]',
+        '[role="region"][aria-label="Legendas"]',
+        '[role="region"][aria-label="Subtítulos"]',
+        '[jsname="dsdcsc"]',
+        '.a4cQT'
+      ],
+      entry: '.nMcdL',
+      text: '.ygicle.VbkSUe',
+      textAlt: '.ygicle',
+      speaker: '.NWpY1d',
+      speakerAlt: '.adE6rb'
+    },
+    // Microsoft Teams
+    teams: {
+      container: [
+        '[data-tid="closed-captions-text"]',
+        '.ts-captions-container',
+        '.closed-captions-container'
+      ],
+      entry: '.caption-item',
+      text: '.caption-text',
+      speaker: '.caption-speaker'
+    },
+    // Zoom
+    zoom: {
+      container: [
+        '.transcript-message',
+        '[class*="transcript"]',
+        '.closed-caption-container'
+      ],
+      entry: '.transcript-line',
+      text: '.closed-caption-text',
+      speaker: null
+    },
+    // YouTube
+    youtube: {
+      container: [
+        '.ytp-caption-window-container'
+      ],
+      entry: '.captions-text',
+      text: '.ytp-caption-segment',
+      speaker: null
     }
+  };
+
+  // Detecta plataforma
+  static detectPlatform() {
+    const url = window.location.href;
+    if (url.includes('meet.google.com')) return 'meet';
+    if (url.includes('teams.microsoft.com')) return 'teams';
+    if (url.includes('zoom.us')) return 'zoom';
+    if (url.includes('youtube.com')) return 'youtube';
+    return 'unknown';
   }
 
-  // --- DETECÇÃO DE LEGENDAS (variantes por plataforma) ---
-  // Vamos buscar por elementos comuns de legenda (Google Meet, Teams, YouTube)
-  function findCaptionElement() {
-    // 1) Google Meet: .QvAawe (pode variar) — vamos procurar por elementos com role="region" e aria-live
-    const candidates = Array.from(document.querySelectorAll('[aria-live], [role="log"], [role="region"], span, div'));
-    // procura por elemento com texto recente e visível
-    for (const el of candidates) {
-      try {
-        if (!el.offsetParent) continue; // invisível
-        const txt = (el.innerText || el.textContent || '').trim();
-        if (txt.length > 0 && txt.length < 500) {
-          // heurística: conter várias palavras e pouco elemento filho
-          return el;
-        }
-      } catch (e) { /* ignore */ }
+  // Debounce helper
+  debounce(fn, delay) {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  // Encontra container ativo baseado na plataforma
+  findCaptionContainer() {
+    const platform = CaptionObserver.detectPlatform();
+    const selectors = CaptionObserver.SELECTORS[platform] || CaptionObserver.SELECTORS.meet;
+    
+    for (const selector of selectors.container) {
+      const element = document.querySelector(selector);
+      if (element) {
+        console.log('[CaptionObserver] Container encontrado:', selector);
+        return { element, platform, selectors };
+      }
     }
     return null;
   }
 
-  // Observador alternativo para Google Meet específico (mais seguro)
-  function observeMeetCaptions(onNew) {
-    // Google Meet coloca legendas em <div role="region" aria-live="polite">, mas varia por versão
-    const check = () => {
-      const el = document.querySelector('[aria-live="polite"], [aria-live="assertive"]');
-      if (el && el.innerText.trim()) {
-        onNew(el.innerText.trim());
+  // Processa entrada de legenda
+  processCaption(entry, selectors, platform) {
+    // Busca o nome do falante
+    let speaker = 'Desconhecido';
+    if (selectors.speaker) {
+      const speakerEl = entry.querySelector(selectors.speaker) || 
+                        (selectors.speakerAlt ? entry.querySelector(selectors.speakerAlt) : null);
+      if (speakerEl) {
+        speaker = speakerEl.textContent?.trim() || 'Desconhecido';
       }
-    };
-    return setInterval(check, LEGENDAS_CHECK_INTERVAL);
-  }
-
-  // Generic polling for caption changes
-  function startPollingCaptions(onNew) {
-    let last = '';
-    const interval = setInterval(() => {
-      const el = findCaptionElement();
-      if (!el) return;
-      const txt = el.innerText.trim();
-      if (txt && txt !== last) {
-        last = txt;
-        onNew(txt);
-      }
-    }, LEGENDAS_CHECK_INTERVAL);
-    return interval;
-  }
-
-  // --- Fallback: captura de áudio via getDisplayMedia (pede ao usuário compartilhar a aba ou janela)
-  async function startAudioCaptureFallback(onText) {
-    try {
-      // pede ao usuário compartilhar a aba (ou tela) com áudio
-      const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: false });
-      // mediaRecorder no contexto do content script
-      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-      const recorder = new MediaRecorder(stream, { mimeType: mime });
-      recorder.addEventListener('dataavailable', async (e) => {
-        if (e.data && e.data.size > 1000) {
-          const texto = await sendAudioBlobToBackend(e.data);
-          if (texto) onText(texto);
-        }
-      });
-      recorder.start(AUDIO_CHUNK_MS); // envia a cada N ms
-      // para quando a stream terminar (usuário clicando no stop do compartilhamento)
-      stream.getTracks().forEach(track => track.addEventListener('ended', () => {
-        recorder.stop();
-      }));
-      return recorder;
-    } catch (err) {
-      console.error('[EXT] falha ao iniciar captura de áudio (fallback):', err);
-      return null;
     }
-  }
 
-  // --- Lógica principal: tenta legenda; se não achar em X ms, ativa fallback áudio ---
-  try {
-    await injectVlibras();
-  } catch (err) {
-    console.warn('[EXT] VLibras não carregou:', err);
-  }
+    // Busca o texto
+    const textEl = entry.querySelector(selectors.text) || 
+                   (selectors.textAlt ? entry.querySelector(selectors.textAlt) : null);
+    
+    if (!textEl) return;
 
-  // UI mínima: cria um pequeno badge para status
-  function createBadge() {
-    if (document.getElementById('libras-ext-badge')) return;
-    const badge = document.createElement('div');
-    badge.id = 'libras-ext-badge';
-    badge.style.position = 'fixed';
-    badge.style.right = '12px';
-    badge.style.bottom = '12px';
-    badge.style.zIndex = 2147483647;
-    badge.style.background = 'rgba(255,255,255,0.95)';
-    badge.style.padding = '8px';
-    badge.style.borderRadius = '8px';
-    badge.style.boxShadow = '0 6px 18px rgba(0,0,0,0.2)';
-    badge.style.fontFamily = 'Arial, sans-serif';
-    badge.innerHTML = `<div style="font-weight:bold;margin-bottom:6px;">Libras Ext</div>
-                       <div id="libras-ext-status">Procurando legenda...</div>
-                       <div style="margin-top:6px;"><button id="libras-ext-toggle">Ativar Fallback Áudio</button></div>`;
-    document.body.appendChild(badge);
+    const text = textEl.textContent?.trim();
+    if (!text || text.length < 2) return;
 
-    document.getElementById('libras-ext-toggle').addEventListener('click', async () => {
-      // iniciar fallback manual
-      const rec = await startAudioCaptureFallback(async (texto) => {
-        // mostra e envia ao VLibras
-        document.getElementById('libras-ext-status').innerText = 'Último (audio): ' + texto.slice(0, 60);
-        sendToVlibras(texto);
-      });
-      if (rec) document.getElementById('libras-ext-status').innerText = 'Fallback áudio ligado';
+    // Verifica duplicação usando WeakMap
+    const lastText = this.elementLastText.get(entry);
+    if (lastText === text) return;
+
+    this.elementLastText.set(entry, text);
+
+    // Callback com dados da legenda
+    this.onCaption({ 
+      speaker, 
+      text, 
+      timestamp: Date.now(),
+      platform 
     });
   }
 
-  createBadge();
+  // Inicia observação
+  start() {
+    console.log('[CaptionObserver] Iniciando observação...');
+    
+    // Verifica periodicamente por containers
+    this.checkInterval = setInterval(() => {
+      const result = this.findCaptionContainer();
+      if (result && result.element !== this.currentContainer) {
+        this.observeContainer(result);
+      }
+    }, 2000);
 
-  // primeiro tenta capturar legendas por X ms
-  let captionInterval = null;
-  let observed = false;
-  const onNewCaption = (txt) => {
-    observed = true;
-    // exibe status e envia ao VLibras
-    const el = document.getElementById('libras-ext-status');
-    if (el) el.innerText = 'Último (legenda): ' + txt.slice(0, 80);
-    sendToVlibras(txt);
+    // Tenta imediatamente
+    const result = this.findCaptionContainer();
+    if (result) {
+      this.observeContainer(result);
+    }
+
+    return () => this.stop();
+  }
+
+  // Observa container específico
+  observeContainer({ element, platform, selectors }) {
+    if (this.observer) {
+      this.observer.disconnect();
+    }
+    
+    this.currentContainer = element;
+    console.log('[CaptionObserver] Observando container para:', platform);
+
+    const debouncedExtract = this.debounce(() => {
+      const entries = element.querySelectorAll(selectors.entry);
+      
+      // Se não encontrar entries específicos, tenta extrair texto diretamente
+      if (entries.length === 0) {
+        const textEls = element.querySelectorAll(selectors.text) || 
+                        (selectors.textAlt ? element.querySelectorAll(selectors.textAlt) : []);
+        textEls.forEach(textEl => {
+          const text = textEl.textContent?.trim();
+          if (text && text.length >= 2) {
+            const lastText = this.elementLastText.get(textEl);
+            if (lastText !== text) {
+              this.elementLastText.set(textEl, text);
+              this.onCaption({
+                speaker: 'Desconhecido',
+                text,
+                timestamp: Date.now(),
+                platform
+              });
+            }
+          }
+        });
+      } else {
+        entries.forEach(entry => this.processCaption(entry, selectors, platform));
+      }
+    }, this.debounceDelay);
+
+    this.observer = new MutationObserver(() => debouncedExtract());
+
+    this.observer.observe(element, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: false // Performance: não observar atributos
+    });
+
+    // Processa legendas existentes
+    debouncedExtract();
+  }
+
+  // Para observação
+  stop() {
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+      this.checkInterval = null;
+    }
+    console.log('[CaptionObserver] Observação parada');
+  }
+}
+
+// ===============================
+// Comunicação com Background/Side Panel
+// ===============================
+
+async function sendCaptionToSidePanel(captionData) {
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'caption_update',
+      text: captionData.text,
+      speaker: captionData.speaker,
+      platform: captionData.platform,
+      timestamp: captionData.timestamp
+    });
+    console.log('[ContentScript] Legenda enviada:', captionData.text.substring(0, 50) + '...');
+  } catch (error) {
+    // Pode falhar se side panel não estiver aberto - isso é ok
+    if (!error.message?.includes('Receiving end does not exist')) {
+      console.error('[ContentScript] Erro ao enviar legenda:', error);
+    }
+  }
+}
+
+// ===============================
+// Badge de Status
+// ===============================
+
+function createStatusBadge() {
+  // Remove badge existente se houver
+  const existingBadge = document.getElementById('libras-ext-badge');
+  if (existingBadge) {
+    existingBadge.remove();
+  }
+
+  const badge = document.createElement('div');
+  badge.id = 'libras-ext-badge';
+  badge.innerHTML = `
+    <div style="
+      background: linear-gradient(135deg, #0078D4 0%, #005A9E 100%);
+      color: white;
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: 0 2px 10px rgba(0,120,212,0.4);
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    ">
+      <span style="font-size: 16px;">🤟</span>
+      <span>Libras</span>
+      <span id="libras-status-dot" style="
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #4CAF50;
+        animation: pulse 2s infinite;
+      "></span>
+    </div>
+    <style>
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      #libras-ext-badge:hover > div {
+        transform: scale(1.05);
+        box-shadow: 0 4px 15px rgba(0,120,212,0.5);
+      }
+    </style>
+  `;
+  
+  badge.onclick = async () => {
+    try {
+      // Abre o Side Panel
+      await chrome.runtime.sendMessage({ type: 'open_side_panel' });
+    } catch (error) {
+      console.log('[ContentScript] Clique para abrir Side Panel manualmente');
+    }
   };
 
-  captionInterval = startPollingCaptions(onNewCaption);
+  document.body.appendChild(badge);
+  console.log('[ContentScript] Badge de status criado');
+}
 
-  // se depois de TIMEOUT_LEGENDAS nada encontrado, ativa fallback sugerindo ao usuário
-  setTimeout(() => {
-    if (!observed) {
-      const el = document.getElementById('libras-ext-status');
-      if (el) el.innerText = 'Legenda não detectada – ative fallback áudio';
-      // não ativa automaticamente para não pedir getDisplayMedia sem consentimento
-    } else {
-      const el = document.getElementById('libras-ext-status');
-      if (el) el.innerText = 'Legenda detectada — tradução automática ativa';
-    }
-  }, TIMEOUT_LEGENDAS);
-})();
+function updateBadgeStatus(isCapturing) {
+  const statusDot = document.getElementById('libras-status-dot');
+  if (statusDot) {
+    statusDot.style.background = isCapturing ? '#4CAF50' : '#FFC107';
+  }
+}
+
+// ===============================
+// Inicialização Principal
+// ===============================
+
+let captionObserver = null;
+let lastCaptionText = '';
+let captionDebounceTimer = null;
+const CAPTION_DEBOUNCE = 800; // ms
+
+function handleCaption(captionData) {
+  // Debounce para evitar spam de legendas parciais
+  clearTimeout(captionDebounceTimer);
+  
+  captionDebounceTimer = setTimeout(() => {
+    // Evita duplicatas
+    if (captionData.text === lastCaptionText) return;
+    lastCaptionText = captionData.text;
+    
+    sendCaptionToSidePanel(captionData);
+    updateBadgeStatus(true);
+  }, CAPTION_DEBOUNCE);
+}
+
+async function init() {
+  console.log('[ContentScript] Iniciando extensão Tradutor Libras...');
+
+  const platform = CaptionObserver.detectPlatform();
+  console.log('[ContentScript] Plataforma detectada:', platform);
+
+  if (platform === 'unknown') {
+    console.log('[ContentScript] Plataforma não suportada, encerrando');
+    return;
+  }
+
+  // Cria badge de status
+  createStatusBadge();
+
+  // Inicia observador de legendas
+  captionObserver = new CaptionObserver({
+    onCaption: handleCaption,
+    debounceDelay: 100
+  });
+
+  captionObserver.start();
+
+  console.log('[ContentScript] Extensão inicializada com sucesso!');
+  console.log('[ContentScript] Aguardando legendas... Ative as legendas na sua reunião.');
+}
+
+// ===============================
+// Lifecycle
+// ===============================
+
+// Aguarda DOM estar pronto
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+// Limpeza ao descarregar
+window.addEventListener('unload', () => {
+  if (captionObserver) {
+    captionObserver.stop();
+  }
+});
+
+// Pausa quando aba não está visível (economia de recursos)
+document.addEventListener('visibilitychange', () => {
+  if (!captionObserver) return;
+  
+  if (document.hidden) {
+    console.log('[ContentScript] Aba oculta, pausando observação');
+    captionObserver.stop();
+  } else {
+    console.log('[ContentScript] Aba visível, retomando observação');
+    captionObserver.start();
+  }
+});
+
+// ===============================
+// Mensagens do Background
+// ===============================
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  switch (message.type) {
+    case 'get_platform':
+      sendResponse({ platform: CaptionObserver.detectPlatform() });
+      break;
+      
+    case 'toggle_capture':
+      if (message.enabled && !captionObserver) {
+        captionObserver = new CaptionObserver({ onCaption: handleCaption });
+        captionObserver.start();
+      } else if (!message.enabled && captionObserver) {
+        captionObserver.stop();
+        captionObserver = null;
+      }
+      sendResponse({ success: true });
+      break;
+      
+    default:
+      sendResponse({ error: 'Unknown message type' });
+  }
+  return true;
+});

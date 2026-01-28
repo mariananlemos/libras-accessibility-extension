@@ -1,33 +1,59 @@
 {
   "manifest_version": 3,
-  "name": "Tradutor Libras - Extensão PoC",
-  "version": "1.0",
-  "description": "Captura legendas (ou áudio) de reuniões web e aciona o VLibras automaticamente.",
+  "name": "Tradutor Libras - Reuniões",
+  "version": "2.0",
+  "description": "Traduz legendas de reuniões online para Libras usando VLibras no Side Panel",
+  
+  "minimum_chrome_version": "116",
+  
   "permissions": [
-    "activeTab",
-    "scripting",
-    "storage"
+    "sidePanel",
+    "storage",
+    "activeTab"
   ],
+  
   "host_permissions": [
-    "https://*/*",
-    "http://*/*"
+    "https://meet.google.com/*",
+    "https://teams.microsoft.com/*",
+    "https://*.zoom.us/*",
+    "https://*.youtube.com/*"
   ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "Tradutor Libras"
+  
+  "background": {
+    "service_worker": "background.js"
   },
+  
   "content_scripts": [
     {
       "matches": [
         "https://meet.google.com/*",
         "https://teams.microsoft.com/*",
         "https://*.zoom.us/*",
-        "https://*.youtube.com/*",
-        "<all_urls>"
+        "https://*.youtube.com/*"
       ],
       "js": ["contentScript.js"],
       "css": ["styles.css"],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Tradutor Libras",
+    "default_icon": {
+      "16": "icons/icon16.svg",
+      "48": "icons/icon48.svg",
+      "128": "icons/icon128.svg"
+    }
+  },
+  
+  "icons": {
+    "16": "icons/icon16.svg",
+    "48": "icons/icon48.svg",
+    "128": "icons/icon128.svg"
+  }
 }
