@@ -1,17 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Tradutor Libras - Reuniões",
+  "name": "Tradutor Libras - Reunioes",
   "version": "2.0",
-  "description": "Traduz legendas de reuniões online para Libras usando VLibras no Side Panel",
-  
+  "description": "Traduz legendas de reunioes online para Libras usando VLibras",
   "minimum_chrome_version": "116",
-  
   "permissions": [
     "sidePanel",
     "storage",
     "activeTab"
   ],
-  
   "host_permissions": [
     "https://meet.google.com/*",
     "https://teams.microsoft.com/*",
@@ -19,15 +16,12 @@
     "https://*.youtube.com/*",
     "https://vlibras.gov.br/*"
   ],
-  
   "content_security_policy": {
     "extension_pages": "script-src 'self' https://vlibras.gov.br; object-src 'self'; frame-src https://vlibras.gov.br;"
   },
-  
   "background": {
     "service_worker": "background.js"
   },
-  
   "content_scripts": [
     {
       "matches": [
@@ -41,11 +35,9 @@
       "run_at": "document_idle"
     }
   ],
-  
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
   },
-  
   "action": {
     "default_popup": "popup.html",
     "default_title": "Tradutor Libras",
@@ -55,7 +47,6 @@
       "128": "icons/icon128.png"
     }
   },
-  
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
