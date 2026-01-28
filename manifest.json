@@ -16,8 +16,13 @@
     "https://meet.google.com/*",
     "https://teams.microsoft.com/*",
     "https://*.zoom.us/*",
-    "https://*.youtube.com/*"
+    "https://*.youtube.com/*",
+    "https://vlibras.gov.br/*"
   ],
+  
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' https://vlibras.gov.br; object-src 'self'; frame-src https://vlibras.gov.br;"
+  },
   
   "background": {
     "service_worker": "background.js"
