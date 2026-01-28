@@ -1,6 +1,8 @@
 /**
  * Content Script - Captura de Legendas + VLibras Widget
  * Captura legendas de plataformas de reunião e traduz para Libras usando o VLibras
+ * 
+ * IMPORTANTE: Usa iframe para contornar CSP do Google Meet
  */
 
 // ===============================
@@ -8,32 +10,31 @@
 // ===============================
 
 const VLIBRAS_CONFIG = {
-  pluginUrl: 'https://vlibras.gov.br/app/vlibras-plugin.js',
-  rootPath: 'https://vlibras.gov.br/app',
-  translatorUrl: 'https://traducao2.vlibras.gov.br/translate',
-  dictionaryUrl: 'https://dicionario2.vlibras.gov.br/2018.3.1/WEBGL/',
   avatars: ['icaro', 'hosana', 'guga'],
   defaultAvatar: 'icaro'
 };
 
 // ===============================
-// VLibras Widget Manager
+// VLibras Widget Manager (via iframe)
 // ===============================
 
 class VLibrasManager {
   constructor() {
     this.isLoaded = false;
+    this.isReady = false;
     this.isTranslating = false;
     this.container = null;
-    this.player = null;
+    this.iframe = null;
     this.currentText = '';
-    this.translationQueue = [];
-    this.isProcessing = false;
+    this.currentAvatar = VLIBRAS_CONFIG.defaultAvatar;
   }
 
-  // Injeta o container do VLibras na página
+  // Injeta o container do VLibras com iframe na página
   async injectContainer() {
     if (this.container) return;
+
+    // URL do widget da extensão
+    const widgetUrl = chrome.runtime.getURL('vlibras-widget/widget.html');
 
     // Cria o container principal do VLibras
     this.container = document.createElement('div');
@@ -48,16 +49,12 @@ class VLibrasManager {
           </div>
         </div>
         <div id="vlibras-player-area">
-          <div id="vlibras-loading" class="vlibras-loading">
-            <div class="vlibras-spinner"></div>
-            <span>Carregando VLibras...</span>
-          </div>
-          <div vw class="enabled">
-            <div vw-access-button class="active"></div>
-            <div vw-plugin-wrapper>
-              <div class="vw-plugin-top-wrapper"></div>
-            </div>
-          </div>
+          <iframe 
+            id="vlibras-iframe"
+            src="${widgetUrl}"
+            title="VLibras Widget"
+            allow="autoplay"
+          ></iframe>
         </div>
         <div id="vlibras-caption-display">
           <span id="vlibras-current-text">Aguardando legendas...</span>
@@ -76,10 +73,12 @@ class VLibrasManager {
     `;
 
     document.body.appendChild(this.container);
+    this.iframe = this.container.querySelector('#vlibras-iframe');
     this.injectStyles();
     this.setupEventListeners();
+    this.setupIframeCommunication();
     
-    console.log('[VLibras] Container injetado');
+    console.log('[VLibras] Container com iframe injetado');
   }
 
   // Estilos do widget VLibras
@@ -161,60 +160,16 @@ class VLibrasManager {
       }
 
       #vlibras-player-area {
-        height: 280px;
+        height: 300px;
         background: #e8e8e8;
         position: relative;
         overflow: hidden;
       }
 
-      #vlibras-player-area [vw] {
-        position: relative !important;
-        width: 100% !important;
-        height: 100% !important;
-        margin: 0 !important;
-      }
-
-      #vlibras-player-area [vw-plugin-wrapper] {
-        width: 100% !important;
-        height: 100% !important;
-        float: none !important;
-        border-radius: 0 !important;
-      }
-
-      #vlibras-player-area [vw-access-button] {
-        display: none !important;
-      }
-
-      .vlibras-loading {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        background: #e8e8e8;
-        z-index: 10;
-      }
-
-      .vlibras-loading.hidden {
-        display: none;
-      }
-
-      .vlibras-spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid #ddd;
-        border-top-color: #0078D4;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-bottom: 12px;
-      }
-
-      @keyframes spin {
-        to { transform: rotate(360deg); }
+      #vlibras-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
       }
 
       #vlibras-caption-display {
@@ -286,11 +241,50 @@ class VLibrasManager {
           width: 280px;
         }
         #vlibras-player-area {
-          height: 220px;
+          height: 250px;
         }
       }
     `;
     document.head.appendChild(style);
+  }
+
+  // Configura comunicação com o iframe via postMessage
+  setupIframeCommunication() {
+    window.addEventListener('message', (event) => {
+      // Verifica se é do nosso iframe
+      if (!event.data || event.data.source !== 'vlibras-widget') return;
+
+      console.log('[VLibras] Mensagem do iframe:', event.data);
+
+      switch (event.data.type) {
+        case 'ready':
+          this.isReady = true;
+          this.isLoaded = true;
+          console.log('[VLibras] Widget iframe pronto!');
+          break;
+        case 'error':
+          console.error('[VLibras] Erro no iframe:', event.data.message);
+          break;
+        case 'translating':
+          console.log('[VLibras] Traduzindo:', event.data.text);
+          break;
+        case 'pong':
+          console.log('[VLibras] Pong recebido, ready:', event.data.ready);
+          break;
+      }
+    });
+
+    // Envia ping para verificar se está pronto
+    setTimeout(() => {
+      this.sendToIframe({ type: 'ping' });
+    }, 2000);
+  }
+
+  // Envia mensagem para o iframe
+  sendToIframe(message) {
+    if (this.iframe && this.iframe.contentWindow) {
+      this.iframe.contentWindow.postMessage(message, '*');
+    }
   }
 
   // Configura event listeners
@@ -326,91 +320,11 @@ class VLibrasManager {
     });
   }
 
-  // Carrega o script do VLibras
-  async loadVLibrasPlugin() {
-    return new Promise((resolve, reject) => {
-      if (window.VLibras) {
-        console.log('[VLibras] Plugin já carregado');
-        resolve();
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = VLIBRAS_CONFIG.pluginUrl;
-      script.async = true;
-      
-      script.onload = () => {
-        console.log('[VLibras] Script carregado com sucesso');
-        // Aguarda inicialização do VLibras
-        setTimeout(() => {
-          if (window.VLibras) {
-            resolve();
-          } else {
-            // Inicializa manualmente se necessário
-            this.initializeVLibrasManually();
-            resolve();
-          }
-        }, 1000);
-      };
-
-      script.onerror = (error) => {
-        console.error('[VLibras] Erro ao carregar script:', error);
-        reject(error);
-      };
-
-      document.head.appendChild(script);
-    });
-  }
-
-  // Inicializa o VLibras manualmente
-  initializeVLibrasManually() {
-    try {
-      if (typeof window.VLibras !== 'undefined' && window.VLibras) {
-        new window.VLibras.Widget({
-          rootPath: VLIBRAS_CONFIG.rootPath,
-          avatar: VLIBRAS_CONFIG.defaultAvatar,
-          position: 'R'
-        });
-      }
-    } catch (error) {
-      console.error('[VLibras] Erro na inicialização manual:', error);
-    }
-  }
-
   // Inicializa completamente
   async initialize() {
     try {
       await this.injectContainer();
-      await this.loadVLibrasPlugin();
-      
-      // Esconde loading após carregar
-      const loading = this.container.querySelector('#vlibras-loading');
-      
-      // Monitora quando o VLibras estiver pronto
-      const checkReady = setInterval(() => {
-        const vwWrapper = this.container.querySelector('[vw-plugin-wrapper]');
-        if (vwWrapper && vwWrapper.querySelector('canvas, iframe, div[vp]')) {
-          loading.classList.add('hidden');
-          this.isLoaded = true;
-          clearInterval(checkReady);
-          console.log('[VLibras] Widget pronto para uso');
-        }
-      }, 500);
-
-      // Timeout de segurança
-      setTimeout(() => {
-        clearInterval(checkReady);
-        if (!this.isLoaded) {
-          loading.innerHTML = `
-            <span style="color: #666; text-align: center; padding: 20px;">
-              ⚠️ VLibras em modo alternativo<br>
-              <small>Use o botão traduzir</small>
-            </span>
-          `;
-          this.isLoaded = true;
-        }
-      }, 15000);
-
+      console.log('[VLibras] Inicialização completa');
     } catch (error) {
       console.error('[VLibras] Erro na inicialização:', error);
     }
@@ -434,7 +348,7 @@ class VLibrasManager {
     }
   }
 
-  // Traduz texto para Libras usando a API
+  // Traduz texto para Libras
   async translate(text) {
     if (!text || this.isTranslating) return;
 
@@ -447,82 +361,28 @@ class VLibrasManager {
     }
 
     try {
-      // Tenta usar o VLibras Widget se disponível
-      if (window.plugin && window.plugin.translate) {
-        window.plugin.translate(text);
-        console.log('[VLibras] Traduzindo via widget:', text);
-      } else {
-        // Fallback: usa a API diretamente
-        const gloss = await this.translateToGloss(text);
-        if (gloss && window.plugin && window.plugin.play) {
-          window.plugin.play(gloss);
-        }
-      }
+      // Envia texto para o iframe traduzir
+      this.sendToIframe({ type: 'translate', text: text });
+      console.log('[VLibras] Enviando para tradução:', text);
     } catch (error) {
       console.error('[VLibras] Erro na tradução:', error);
     } finally {
-      this.isTranslating = false;
-      if (translateBtn) {
-        translateBtn.textContent = '🤟 Traduzir';
-        translateBtn.classList.remove('translating');
-      }
+      // Restaura botão após 2 segundos
+      setTimeout(() => {
+        this.isTranslating = false;
+        if (translateBtn) {
+          translateBtn.textContent = '🤟 Traduzir';
+          translateBtn.classList.remove('translating');
+        }
+      }, 2000);
     }
-  }
-
-  // Traduz texto para glosa usando a API do VLibras
-  async translateToGloss(text) {
-    try {
-      const response = await fetch(VLIBRAS_CONFIG.translatorUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text: text })
-      });
-
-      if (response.ok) {
-        const gloss = await response.text();
-        console.log('[VLibras] Glosa recebida:', gloss);
-        return gloss;
-      }
-    } catch (error) {
-      console.error('[VLibras] Erro ao traduzir para glosa:', error);
-    }
-    return null;
-  }
-
-  // Tradução automática (quando habilitada)
-  async autoTranslate(text) {
-    // Adiciona à fila de tradução
-    this.translationQueue.push(text);
-    
-    if (!this.isProcessing) {
-      this.processQueue();
-    }
-  }
-
-  // Processa fila de traduções
-  async processQueue() {
-    if (this.translationQueue.length === 0) {
-      this.isProcessing = false;
-      return;
-    }
-
-    this.isProcessing = true;
-    const text = this.translationQueue.shift();
-    
-    await this.translate(text);
-    
-    // Aguarda antes de processar próxima
-    setTimeout(() => this.processQueue(), 2000);
   }
 
   // Muda o avatar
   changeAvatar(avatarName) {
-    if (window.plugin && window.plugin.changeAvatar) {
-      window.plugin.changeAvatar(avatarName);
-      console.log('[VLibras] Avatar alterado para:', avatarName);
-    }
+    this.currentAvatar = avatarName;
+    this.sendToIframe({ type: 'changeAvatar', avatar: avatarName });
+    console.log('[VLibras] Avatar alterado para:', avatarName);
   }
 
   // Mostra/esconde container

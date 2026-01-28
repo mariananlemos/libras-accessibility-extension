@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VLibras Widget</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: 'Google Sans', 'Roboto', Arial, sans-serif;
+    }
+
+    /* VLibras container */
+    #vlibras-container {
+      flex: 1;
+      position: relative;
+      background: #e8e8e8;
+      min-height: 200px;
+    }
+
+    /* Esconde o botão de acesso padrão do VLibras */
+    [vw-access-button] {
+      display: none !important;
+    }
+
+    /* Ajusta o wrapper do plugin */
+    [vw] {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+    }
+
+    [vw-plugin-wrapper] {
+      width: 100% !important;
+      height: 100% !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+
+    .vw-plugin-top-wrapper {
+      display: none !important;
+    }
+
+    /* Loading state */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #e8e8e8;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      transition: opacity 0.3s;
+    }
+
+    .loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #ddd;
+      border-top-color: #0078D4;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 12px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: #666;
+      font-size: 13px;
+    }
+
+    /* Error state */
+    .error-message {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #fff3cd;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      text-align: center;
+      z-index: 101;
+    }
+
+    .error-message.visible {
+      display: flex;
+    }
+
+    .error-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .error-text {
+      color: #856404;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    /* Caption display */
+    #caption-display {
+      background: #f5f5f5;
+      padding: 10px 12px;
+      border-top: 1px solid #e0e0e0;
+      min-height: 50px;
+      max-height: 70px;
+      overflow-y: auto;
+    }
+
+    #caption-text {
+      font-size: 13px;
+      color: #333;
+      line-height: 1.4;
+    }
+
+    #caption-text.placeholder {
+      color: #888;
+      font-style: italic;
+    }
+
+    /* Status indicator */
+    #status-bar {
+      background: #0078D4;
+      color: white;
+      padding: 6px 12px;
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4CAF50;
+      margin-right: 6px;
+      display: inline-block;
+    }
+
+    .status-dot.loading {
+      background: #FFC107;
+      animation: pulse 1s infinite;
+    }
+
+    .status-dot.error {
+      background: #f44336;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Status bar -->
+  <div id="status-bar">
+    <span><span id="status-dot" class="status-dot loading"></span><span id="status-text">Carregando...</span></span>
+    <span id="avatar-name">Ícaro</span>
+  </div>
+
+  <!-- VLibras container -->
+  <div id="vlibras-container">
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="spinner"></div>
+      <span class="loading-text">Carregando VLibras...</span>
+    </div>
+
+    <div class="error-message" id="error-message">
+      <span class="error-icon">⚠️</span>
+      <span class="error-text">Erro ao carregar VLibras.<br>Tente recarregar a página.</span>
+    </div>
+
+    <!-- VLibras será injetado aqui -->
+    <div vw class="enabled">
+      <div vw-access-button class="active"></div>
+      <div vw-plugin-wrapper>
+        <div class="vw-plugin-top-wrapper"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Caption display -->
+  <div id="caption-display">
+    <span id="caption-text" class="placeholder">Aguardando texto...</span>
+  </div>
+
+  <!-- VLibras Script -->
+  <script src="https://vlibras.gov.br/app/vlibras-plugin.js" onload="onVLibrasLoad()" onerror="onVLibrasError()"></script>
+  
+  <script>
+    // Estado do widget
+    const widgetState = {
+      isReady: false,
+      currentAvatar: 'icaro',
+      lastText: ''
+    };
+
+    // Elementos DOM
+    const elements = {
+      loadingOverlay: document.getElementById('loading-overlay'),
+      errorMessage: document.getElementById('error-message'),
+      captionText: document.getElementById('caption-text'),
+      statusDot: document.getElementById('status-dot'),
+      statusText: document.getElementById('status-text'),
+      avatarName: document.getElementById('avatar-name')
+    };
+
+    // Callback quando VLibras carrega
+    function onVLibrasLoad() {
+      console.log('[VLibras Widget] Script carregado');
+      
+      // Aguarda inicialização
+      setTimeout(() => {
+        initializeVLibras();
+      }, 500);
+    }
+
+    // Callback quando VLibras falha
+    function onVLibrasError() {
+      console.error('[VLibras Widget] Erro ao carregar script');
+      showError();
+    }
+
+    // Inicializa o VLibras
+    function initializeVLibras() {
+      try {
+        if (typeof VLibras !== 'undefined') {
+          new VLibras.Widget({
+            rootPath: 'https://vlibras.gov.br/app',
+            avatar: widgetState.currentAvatar,
+            opacity: 1
+          });
+
+          // Monitora quando o widget estiver pronto
+          checkVLibrasReady();
+        } else {
+          console.error('[VLibras Widget] VLibras não definido');
+          showError();
+        }
+      } catch (error) {
+        console.error('[VLibras Widget] Erro na inicialização:', error);
+        showError();
+      }
+    }
+
+    // Verifica se VLibras está pronto
+    function checkVLibrasReady() {
+      let attempts = 0;
+      const maxAttempts = 30; // 15 segundos
+
+      const checkInterval = setInterval(() => {
+        attempts++;
+        
+        // Verifica se há canvas ou iframe do Unity
+        const vwWrapper = document.querySelector('[vw-plugin-wrapper]');
+        const hasPlayer = vwWrapper && (
+          vwWrapper.querySelector('canvas') || 
+          vwWrapper.querySelector('iframe') ||
+          vwWrapper.querySelector('[vp]')
+        );
+
+        if (hasPlayer || window.plugin) {
+          clearInterval(checkInterval);
+          onVLibrasReady();
+        } else if (attempts >= maxAttempts) {
+          clearInterval(checkInterval);
+          // Mesmo sem detectar, pode estar funcionando
+          onVLibrasReady();
+        }
+      }, 500);
+    }
+
+    // VLibras está pronto
+    function onVLibrasReady() {
+      console.log('[VLibras Widget] Pronto!');
+      widgetState.isReady = true;
+      
+      elements.loadingOverlay.classList.add('hidden');
+      elements.statusDot.classList.remove('loading');
+      elements.statusText.textContent = 'Pronto';
+
+      // Notifica o parent
+      notifyParent({ type: 'ready' });
+    }
+
+    // Mostra erro
+    function showError() {
+      elements.loadingOverlay.classList.add('hidden');
+      elements.errorMessage.classList.add('visible');
+      elements.statusDot.classList.remove('loading');
+      elements.statusDot.classList.add('error');
+      elements.statusText.textContent = 'Erro';
+
+      notifyParent({ type: 'error', message: 'Falha ao carregar VLibras' });
+    }
+
+    // Traduz texto
+    function translate(text) {
+      if (!text || text.trim().length < 2) return;
+
+      console.log('[VLibras Widget] Traduzindo:', text);
+      widgetState.lastText = text;
+
+      // Atualiza display
+      elements.captionText.textContent = text;
+      elements.captionText.classList.remove('placeholder');
+
+      // Tenta usar o plugin do VLibras
+      try {
+        if (window.plugin && window.plugin.translate) {
+          window.plugin.translate(text);
+        } else if (window.VLibras && window.VLibras.translate) {
+          window.VLibras.translate(text);
+        } else {
+          // Fallback: simula clique no widget e usa API
+          const accessBtn = document.querySelector('[vw-access-button]');
+          if (accessBtn) {
+            // O VLibras padrão tem um campo de texto
+            const textArea = document.querySelector('.vw-text-area, textarea');
+            if (textArea) {
+              textArea.value = text;
+              textArea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[VLibras Widget] Erro ao traduzir:', error);
+      }
+
+      notifyParent({ type: 'translating', text: text });
+    }
+
+    // Muda avatar
+    function changeAvatar(avatarName) {
+      console.log('[VLibras Widget] Mudando avatar para:', avatarName);
+      widgetState.currentAvatar = avatarName;
+      
+      const avatarNames = {
+        'icaro': 'Ícaro',
+        'hosana': 'Hosana', 
+        'guga': 'Guga'
+      };
+      elements.avatarName.textContent = avatarNames[avatarName] || avatarName;
+
+      try {
+        if (window.plugin && window.plugin.changeAvatar) {
+          window.plugin.changeAvatar(avatarName);
+        }
+      } catch (error) {
+        console.error('[VLibras Widget] Erro ao mudar avatar:', error);
+      }
+    }
+
+    // Notifica o parent (content script)
+    function notifyParent(message) {
+      try {
+        window.parent.postMessage({
+          source: 'vlibras-widget',
+          ...message
+        }, '*');
+      } catch (error) {
+        console.error('[VLibras Widget] Erro ao notificar parent:', error);
+      }
+    }
+
+    // Escuta mensagens do parent
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      
+      if (!data || data.source === 'vlibras-widget') return;
+
+      console.log('[VLibras Widget] Mensagem recebida:', data);
+
+      switch (data.type) {
+        case 'translate':
+          translate(data.text);
+          break;
+        case 'changeAvatar':
+          changeAvatar(data.avatar);
+          break;
+        case 'ping':
+          notifyParent({ type: 'pong', ready: widgetState.isReady });
+          break;
+      }
+    });
+
+    // Inicialização
+    console.log('[VLibras Widget] Inicializando...');
+  </script>
+</body>
+</html>
