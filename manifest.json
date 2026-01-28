@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tradutor Libras - Reunioes",
-  "version": "2.2",
+  "version": "2.3",
   "description": "Traduz legendas de reunioes online para Libras usando VLibras com avatar 3D integrado",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -52,6 +52,9 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "sandbox": {
+    "pages": ["vlibras-widget/widget.html"]
   },
   "web_accessible_resources": [
     {
