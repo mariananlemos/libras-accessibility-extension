@@ -122,29 +122,36 @@ body {
   position: relative;
 }
 
-#vlibras-container {
+#vlibras-frame {
   width: 100%;
-  height: 100%;
-  min-height: 200px;
+  height: 250px;
+  border: none;
+  border-radius: 8px;
 }
 
-/* Ajustes para o widget VLibras */
-#vlibras-container [vw] {
-  position: relative !important;
-  width: 100% !important;
-  height: 100% !important;
+.vlibras-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  border-radius: 8px;
 }
 
-#vlibras-container [vw-access-button] {
-  display: none !important;
+.vlibras-overlay p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
 }
 
-#vlibras-container [vw-plugin-wrapper] {
-  position: relative !important;
-  width: 100% !important;
-  height: 100% !important;
-  max-width: none !important;
-  max-height: none !important;
+.vlibras-overlay.hidden {
+  display: none;
 }
 
 /* ===============================

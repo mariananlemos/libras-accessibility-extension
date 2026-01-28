@@ -1,21 +1,17 @@
 /**
  * Side Panel Script
- * Gerencia a exibição de legendas e integração com VLibras
+ * Gerencia a exibicao de legendas e integracao com VLibras via iframe
  */
 
 // ===============================
-// Estado da aplicação
+// Estado da aplicacao
 // ===============================
 
 const state = {
-  vlibrasReady: false,
   currentCaption: null,
   captionHistory: [],
   maxHistoryItems: 50,
-  autoTranslate: true,
-  lastTranslatedText: '',
-  debounceTimer: null,
-  debounceDelay: 800
+  lastTranslatedText: ''
 };
 
 // ===============================
@@ -30,11 +26,13 @@ const elements = {
   captionHistory: null,
   clearHistory: null,
   btnTranslate: null,
-  platformInfo: null
+  platformInfo: null,
+  vlibrasFrame: null,
+  vlibrasOverlay: null
 };
 
 // ===============================
-// Inicialização
+// Inicializacao
 // ===============================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -49,64 +47,21 @@ document.addEventListener('DOMContentLoaded', () => {
   elements.clearHistory = document.getElementById('clear-history');
   elements.btnTranslate = document.getElementById('btn-translate');
   elements.platformInfo = document.getElementById('platform-info');
-
-  // Inicializa VLibras
-  initVLibras();
+  elements.vlibrasFrame = document.getElementById('vlibras-frame');
+  elements.vlibrasOverlay = document.getElementById('vlibras-overlay');
 
   // Configura listeners
   setupListeners();
 
-  // Carrega configurações
-  loadSettings();
-
   // Verifica legendas existentes
   checkExistingCaption();
+
+  updateStatus('connected', 'Pronto - aguardando legendas');
+  console.log('[SidePanel] Inicializado com sucesso');
 });
 
 // ===============================
-// VLibras
-// ===============================
-
-function initVLibras() {
-  console.log('[SidePanel] Inicializando VLibras...');
-  
-  // Aguarda o script carregar
-  if (typeof window.VLibras === 'undefined') {
-    console.log('[SidePanel] Aguardando carregamento do VLibras...');
-    setTimeout(initVLibras, 500);
-    return;
-  }
-
-  try {
-    // Inicializa o widget com opções
-    new window.VLibras.Widget({
-      rootPath: 'https://vlibras.gov.br/app',
-      position: 'R',
-      opacity: 1,
-      avatar: 'icaro'
-    });
-
-    state.vlibrasReady = true;
-    updateStatus('connected', 'VLibras pronto');
-    console.log('[SidePanel] VLibras inicializado com sucesso');
-
-    // Aguarda widget estar totalmente carregado
-    setTimeout(() => {
-      // Esconde o botão de acesso flutuante (já estamos no side panel)
-      const accessButton = document.querySelector('[vw-access-button]');
-      if (accessButton) {
-        accessButton.style.display = 'none';
-      }
-    }, 2000);
-
-  } catch (error) {
-    console.error('[SidePanel] Erro ao inicializar VLibras:', error);
-    updateStatus('error', 'Erro no VLibras');
-  }
-}
-
-// ===============================
-// Tradução
+// Traducao via VLibras
 // ===============================
 
 function translateText(text) {
@@ -115,70 +70,28 @@ function translateText(text) {
     return;
   }
 
-  if (!state.vlibrasReady) {
-    console.log('[SidePanel] VLibras não está pronto');
-    updateStatus('warning', 'VLibras carregando...');
-    return;
-  }
-
-  // Evita traduzir o mesmo texto
-  if (text === state.lastTranslatedText) {
-    console.log('[SidePanel] Texto já traduzido, ignorando');
-    return;
-  }
-
-  console.log('[SidePanel] Traduzindo:', text);
+  console.log('[SidePanel] Preparando traducao:', text);
   state.lastTranslatedText = text;
 
-  // Atualiza UI
-  updateStatus('translating', 'Traduzindo...');
-
-  // Cria elemento temporário com o texto para o VLibras detectar
-  const captionEl = elements.currentCaption;
+  // Abre o VLibras em nova aba com o texto
+  // O VLibras web permite traducao direta
+  const vlibrasUrl = `https://www.vlibras.gov.br/`;
   
-  // Remove placeholder se existir
-  const placeholder = captionEl.querySelector('.caption-placeholder');
-  if (placeholder) {
-    placeholder.remove();
-  }
-
-  // Atualiza o texto
-  captionEl.textContent = text;
-
-  // Seleciona o texto para o VLibras detectar
-  try {
-    const range = document.createRange();
-    range.selectNodeContents(captionEl);
-
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-
-    // Simula clique no texto (VLibras monitora clicks em texto selecionado)
+  // Copia o texto para a area de transferencia para o usuario colar no VLibras
+  navigator.clipboard.writeText(text).then(() => {
+    updateStatus('translating', 'Texto copiado! Cole no VLibras');
+    
+    // Abre o VLibras
+    window.open(vlibrasUrl, '_blank');
+    
     setTimeout(() => {
-      captionEl.click();
-      
-      // Dispara evento de seleção
-      document.dispatchEvent(new Event('selectionchange', { bubbles: true }));
-      
-      // Limpa seleção após um tempo
-      setTimeout(() => {
-        selection.removeAllRanges();
-        updateStatus('connected', 'Tradução concluída');
-      }, 1500);
-    }, 100);
-
-  } catch (error) {
-    console.error('[SidePanel] Erro ao traduzir:', error);
-    updateStatus('error', 'Erro na tradução');
-  }
-}
-
-function translateWithDebounce(text) {
-  clearTimeout(state.debounceTimer);
-  state.debounceTimer = setTimeout(() => {
-    translateText(text);
-  }, state.debounceDelay);
+      updateStatus('connected', 'Pronto');
+    }, 3000);
+  }).catch(err => {
+    console.error('[SidePanel] Erro ao copiar:', err);
+    // Fallback: abre VLibras mesmo assim
+    window.open(vlibrasUrl, '_blank');
+  });
 }
 
 // ===============================
@@ -189,27 +102,30 @@ function displayCaption(captionData) {
   const { text, speaker, platform } = captionData;
 
   // Atualiza UI
-  elements.speakerName.textContent = speaker || '';
+  if (elements.speakerName) {
+    elements.speakerName.textContent = speaker || '';
+  }
   
   // Remove placeholder
-  const placeholder = elements.currentCaption.querySelector('.caption-placeholder');
+  const placeholder = elements.currentCaption?.querySelector('.caption-placeholder');
   if (placeholder) {
     placeholder.remove();
   }
 
   // Atualiza legenda atual
-  elements.currentCaption.textContent = text;
+  if (elements.currentCaption) {
+    elements.currentCaption.textContent = text;
+  }
 
   // Atualiza plataforma
-  elements.platformInfo.textContent = `Plataforma: ${getPlatformName(platform)}`;
+  if (elements.platformInfo) {
+    elements.platformInfo.textContent = `Plataforma: ${getPlatformName(platform)}`;
+  }
 
-  // Adiciona ao histórico
+  // Adiciona ao historico
   addToHistory({ text, speaker, timestamp: Date.now() });
 
-  // Traduz automaticamente se habilitado
-  if (state.autoTranslate) {
-    translateWithDebounce(text);
-  }
+  updateStatus('connected', 'Legenda recebida');
 }
 
 function addToHistory(captionData) {
@@ -221,7 +137,7 @@ function addToHistory(captionData) {
     if (lastItem.text === text) return;
   }
 
-  // Adiciona ao histórico
+  // Adiciona ao historico
   state.captionHistory.push({ text, speaker, timestamp });
 
   // Limita tamanho
@@ -229,14 +145,14 @@ function addToHistory(captionData) {
     state.captionHistory.shift();
   }
 
-  // Renderiza histórico
+  // Renderiza historico
   renderHistory();
 }
 
 function renderHistory() {
   if (!elements.captionHistory) return;
 
-  // Limita exibição a últimos 20 itens
+  // Limita exibicao a ultimos 20 itens
   const displayItems = state.captionHistory.slice(-20);
 
   elements.captionHistory.innerHTML = displayItems.map(item => {
@@ -260,8 +176,10 @@ function renderHistory() {
 
 function clearHistory() {
   state.captionHistory = [];
-  elements.captionHistory.innerHTML = '';
-  console.log('[SidePanel] Histórico limpo');
+  if (elements.captionHistory) {
+    elements.captionHistory.innerHTML = '';
+  }
+  console.log('[SidePanel] Historico limpo');
 }
 
 // ===============================
@@ -269,7 +187,7 @@ function clearHistory() {
 // ===============================
 
 function setupListeners() {
-  // Escuta mudanças no storage (legendas do content script)
+  // Escuta mudancas no storage (legendas do content script)
   chrome.storage.session.onChanged.addListener((changes) => {
     if (changes.currentCaption) {
       const newCaption = changes.currentCaption.newValue;
@@ -280,30 +198,31 @@ function setupListeners() {
     }
   });
 
-  // Botão de tradução manual
+  // Botao de traducao manual
   if (elements.btnTranslate) {
     elements.btnTranslate.addEventListener('click', () => {
-      const text = elements.currentCaption.textContent;
-      if (text && !text.includes('As legendas aparecerão')) {
+      const text = elements.currentCaption?.textContent;
+      if (text && !text.includes('As legendas aparecerao')) {
         translateText(text);
+      } else {
+        alert('Nenhuma legenda para traduzir. Ative as legendas na sua reuniao primeiro.');
       }
     });
   }
 
-  // Botão limpar histórico
+  // Botao limpar historico
   if (elements.clearHistory) {
     elements.clearHistory.addEventListener('click', clearHistory);
   }
 
-  // Clique no histórico para traduzir
+  // Clique no historico para selecionar
   if (elements.captionHistory) {
     elements.captionHistory.addEventListener('click', (e) => {
       const historyItem = e.target.closest('.history-item');
       if (historyItem) {
         const text = historyItem.dataset.text;
-        if (text) {
+        if (text && elements.currentCaption) {
           elements.currentCaption.textContent = text;
-          translateText(text);
         }
       }
     });
@@ -311,14 +230,16 @@ function setupListeners() {
 }
 
 // ===============================
-// Utilitários
+// Utilitarios
 // ===============================
 
 function updateStatus(status, message) {
-  if (!elements.statusIndicator || !elements.statusText) return;
-
-  elements.statusIndicator.className = `status-dot status-${status}`;
-  elements.statusText.textContent = message;
+  if (elements.statusIndicator) {
+    elements.statusIndicator.className = `status-dot status-${status}`;
+  }
+  if (elements.statusText) {
+    elements.statusText.textContent = message;
+  }
 }
 
 function getPlatformName(platform) {
@@ -336,18 +257,6 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-async function loadSettings() {
-  try {
-    const result = await chrome.storage.sync.get('settings');
-    if (result.settings) {
-      state.autoTranslate = result.settings.autoTranslate ?? true;
-      state.debounceDelay = result.settings.debounceDelay ?? 800;
-    }
-  } catch (error) {
-    console.error('[SidePanel] Erro ao carregar configurações:', error);
-  }
 }
 
 async function checkExistingCaption() {
