@@ -15,11 +15,3 @@ Projeto em desenvolvimento focado em acessibilidade.
 3. Ative o **Modo do desenvolvedor**
 4. Clique em **Carregar sem compactação**
 5. Selecione a pasta da extensão
-
-## 📄 Licença
-
-Projeto privado - em desenvolvimento.
-
----
-
-*Mais informações em breve.*
