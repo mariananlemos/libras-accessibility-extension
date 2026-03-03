@@ -1,17 +1,17 @@
-# 🤟 Extensão de Acessibilidade
+# 🤟 Accessibility Extension
 
-Extensão Chrome para promover acessibilidade digital.
+Chrome extension to promote digital accessibility.
 
-![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
+![Status](https://img.shields.io/badge/status-in%20development-yellow)
 
-## 📋 Sobre
+## 📋 About
 
-Projeto em desenvolvimento focado em acessibilidade.
+Project under development focused on accessibility.
 
-## 🚀 Instalação
+## 🚀 Installation
 
-1. Clone ou baixe este repositório
-2. Acesse `chrome://extensions/` no Chrome
-3. Ative o **Modo do desenvolvedor**
-4. Clique em **Carregar sem compactação**
-5. Selecione a pasta da extensão
+1. Clone or download this repository
+2. Go to `chrome://extensions/` in Chrome
+3. Enable **Developer mode**
+4. Click **Load unpacked**
+5. Select the extension folder
