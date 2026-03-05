@@ -1,16 +1,28 @@
 /**
- * Background Service Worker
+ * Background Service Worker / Script
  * Gerencia Side Panel e comunicação entre Content Script e Side Panel
+ * Compatível com Chrome, Edge e Firefox
  */
+
+// ===============================
+// Detecção de navegador
+// ===============================
+
+const isFirefox = typeof browser !== 'undefined' && typeof browser.runtime !== 'undefined';
+const hasSidePanel = typeof chrome.sidePanel !== 'undefined';
+const hasSidebarAction = typeof chrome.sidebarAction !== 'undefined' || 
+                          (typeof browser !== 'undefined' && typeof browser.sidebarAction !== 'undefined');
 
 // ===============================
 // Configuração inicial
 // ===============================
 
-// Configura para abrir Side Panel ao clicar no ícone da extensão
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .catch((error) => console.error('[Background] Erro ao configurar Side Panel:', error));
+// Chrome/Edge: Configura Side Panel
+if (hasSidePanel) {
+  chrome.sidePanel
+    .setPanelBehavior({ openPanelOnActionClick: true })
+    .catch((error) => console.error('[Background] Erro ao configurar Side Panel:', error));
+}
 
 // ===============================
 // Listeners de mensagens
@@ -23,10 +35,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try {
       switch (message.type) {
         case 'open_side_panel':
-          // Abre o Side Panel programaticamente
-          if (sender.tab?.id) {
+          // Abre o Side Panel/Sidebar programaticamente
+          if (hasSidePanel && sender.tab?.id) {
             await chrome.sidePanel.open({ tabId: sender.tab.id });
             sendResponse({ success: true });
+          } else if (hasSidebarAction) {
+            // Firefox: abre a sidebar
+            const sidebarAPI = isFirefox ? browser.sidebarAction : chrome.sidebarAction;
+            await sidebarAPI.open();
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: 'Side panel not supported' });
           }
           break;
 
@@ -69,7 +88,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ===============================
-// Habilita Side Panel apenas em sites de reunião
+// Habilita Side Panel apenas em sites de reunião (Chrome/Edge)
 // ===============================
 
 const MEETING_SITES = [
@@ -79,24 +98,26 @@ const MEETING_SITES = [
   'youtube.com'
 ];
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete' || !tab.url) return;
+if (hasSidePanel) {
+  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    if (changeInfo.status !== 'complete' || !tab.url) return;
 
-  try {
-    const url = new URL(tab.url);
-    const isEnabled = MEETING_SITES.some(site => url.hostname.includes(site));
+    try {
+      const url = new URL(tab.url);
+      const isEnabled = MEETING_SITES.some(site => url.hostname.includes(site));
 
-    await chrome.sidePanel.setOptions({
-      tabId,
-      path: 'sidepanel/sidepanel.html',
-      enabled: isEnabled
-    });
+      await chrome.sidePanel.setOptions({
+        tabId,
+        path: 'sidepanel/sidepanel.html',
+        enabled: isEnabled
+      });
 
-    console.log(`[Background] Side Panel ${isEnabled ? 'habilitado' : 'desabilitado'} para:`, url.hostname);
-  } catch (error) {
-    // Ignora erros de URLs inválidas (chrome://, etc.)
-  }
-});
+      console.log(`[Background] Side Panel ${isEnabled ? 'habilitado' : 'desabilitado'} para:`, url.hostname);
+    } catch (error) {
+      // Ignora erros de URLs inválidas (chrome://, about://, etc.)
+    }
+  });
+}
 
 // ===============================
 // Instalação e atualização
@@ -126,9 +147,14 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 chrome.commands?.onCommand?.addListener(async (command) => {
   if (command === 'toggle-side-panel') {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      await chrome.sidePanel.open({ tabId: tab.id });
+    if (hasSidePanel) {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        await chrome.sidePanel.open({ tabId: tab.id });
+      }
+    } else if (hasSidebarAction) {
+      const sidebarAPI = isFirefox ? browser.sidebarAction : chrome.sidebarAction;
+      await sidebarAPI.toggle();
     }
   }
 });

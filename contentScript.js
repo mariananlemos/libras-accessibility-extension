@@ -705,10 +705,10 @@ function createStatusBadge() {
   
   badge.onclick = async () => {
     try {
-      // Abre o Side Panel
+      // Abre o Side Panel / Sidebar
       await chrome.runtime.sendMessage({ type: 'open_side_panel' });
     } catch (error) {
-      console.log('[ContentScript] Clique para abrir Side Panel manualmente');
+      console.log('[ContentScript] Erro ao abrir painel lateral:', error.message);
     }
   };
 

@@ -1,7 +1,17 @@
 /**
  * Popup Script
  * Interface de configuração e controle da extensão
+ * Compatível com Chrome, Edge e Firefox
  */
+
+// ===============================
+// Detecção de navegador
+// ===============================
+
+const isFirefox = typeof browser !== 'undefined' && typeof browser.runtime !== 'undefined';
+const hasSidePanel = typeof chrome.sidePanel !== 'undefined';
+const hasSidebarAction = typeof chrome.sidebarAction !== 'undefined' || 
+                          (typeof browser !== 'undefined' && typeof browser.sidebarAction !== 'undefined');
 
 // ===============================
 // Elementos DOM
@@ -145,14 +155,24 @@ function setupListeners() {
   // Botão abrir painel
   elements.btnOpenPanel?.addEventListener('click', async () => {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) {
-        await chrome.sidePanel.open({ tabId: tab.id });
-        window.close(); // Fecha o popup
+      if (hasSidePanel) {
+        // Chrome/Edge: abre Side Panel
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id) {
+          await chrome.sidePanel.open({ tabId: tab.id });
+          window.close();
+        }
+      } else if (hasSidebarAction) {
+        // Firefox: abre Sidebar
+        const sidebarAPI = isFirefox ? browser.sidebarAction : chrome.sidebarAction;
+        await sidebarAPI.open();
+        window.close();
+      } else {
+        alert('Painel lateral não disponível neste navegador.');
       }
     } catch (error) {
       console.error('[Popup] Erro ao abrir painel:', error);
-      alert('Não foi possível abrir o painel. Clique no ícone da extensão na barra lateral.');
+      alert('Não foi possível abrir o painel. Tente abrir pela barra lateral do navegador.');
     }
   });
 
@@ -190,6 +210,9 @@ function showHelp() {
 • Mantenha o painel lateral aberto durante a reunião
 • As legendas são traduzidas com um pequeno delay
 • Clique em legendas antigas no histórico para retraduzir
+
+🌐 NAVEGADORES SUPORTADOS:
+• Google Chrome, Microsoft Edge, Mozilla Firefox
 
 🔗 Mais info: vlibras.gov.br
   `.trim();

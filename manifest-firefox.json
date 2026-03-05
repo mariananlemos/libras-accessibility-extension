@@ -3,8 +3,13 @@
   "name": "Tradutor Libras - Reunioes",
   "version": "2.4",
   "description": "Traduz legendas de reunioes online para Libras usando VLibras com avatar 3D integrado",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tradutor-libras@extensao-libras",
+      "strict_min_version": "115.0"
+    }
+  },
   "permissions": [
-    "sidePanel",
     "storage",
     "activeTab",
     "scripting"
@@ -20,7 +25,7 @@
     "https://dicionario2.vlibras.gov.br/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "scripts": ["background.js"]
   },
   "content_scripts": [
     {
@@ -35,8 +40,13 @@
       "run_at": "document_idle"
     }
   ],
-  "side_panel": {
-    "default_path": "sidepanel/sidepanel.html"
+  "sidebar_action": {
+    "default_panel": "sidepanel/sidepanel.html",
+    "default_title": "Tradutor Libras",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
   },
   "action": {
     "default_popup": "popup.html",
@@ -51,9 +61,6 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "sandbox": {
-    "pages": ["vlibras-widget/widget.html"]
   },
   "web_accessible_resources": [
     {
