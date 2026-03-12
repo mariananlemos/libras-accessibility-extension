@@ -1,98 +1,30 @@
-# 🤟 Tradutor Libras - Extensão de Acessibilidade
+# 🤟 Libras Translator - Accessibility Extension
+Captures captions from video conferencing platforms (Google Meet, Microsoft Teams, Zoom) and videos (YouTube) and automatically translates them to Brazilian Sign Language (Libras) using VLibras.
 
-Extensão de navegador que traduz legendas de reuniões online para Libras usando o VLibras com avatar 3D integrado.
+## How to Use
+1. Open a meeting or video on a supported platform
+2. Enable captions on the platform (CC button)
+3. Click the extension icon and then "Open Translation Panel"
+4. VLibras will automatically translate the captions to Libras
 
-![Status](https://img.shields.io/badge/status-in%20development-yellow)
-
-## Sobre
-
-Captura legendas de plataformas de videoconferência (Google Meet, Microsoft Teams, Zoom) e vídeos (YouTube) e traduz automaticamente para Língua Brasileira de Sinais (Libras) usando o VLibras.
-
-## Navegadores Suportados
-
-| Navegador | Status | Versão Mínima |
-|-----------|--------|---------------|
-| Google Chrome | ✅ Suportado | 116+ |
-| Microsoft Edge | ✅ Suportado | 116+ |
-| Mozilla Firefox | ✅ Suportado | 115+ |
-
-## Instalação (Modo Desenvolvedor)
-
-### Opção 1: Carregar diretamente (desenvolvimento rápido)
-
-#### Google Chrome
-1. Abra `chrome://extensions/`
-2. Ative o **Modo desenvolvedor** (canto superior direito)
-3. Clique em **Carregar sem compactação**
-4. Selecione a pasta raiz da extensão
-
-#### Microsoft Edge
-1. Abra `edge://extensions/`
-2. Ative o **Modo desenvolvedor** (barra lateral esquerda)
-3. Clique em **Carregar sem compactação**
-4. Selecione a pasta raiz da extensão
-
-#### Mozilla Firefox
-1. Abra `about:debugging#/runtime/this-firefox`
-2. Clique em **Carregar extensão temporária...**
-3. Selecione o arquivo `manifest-firefox.json` na pasta da extensão
-
-### Opção 2: Usar o build script (recomendado)
-
-```bash
-# Gerar builds para todos os navegadores
-node build.js all
-
-# Ou para um navegador específico
-node build.js chrome
-node build.js edge
-node build.js firefox
+## Project Structure
 ```
-
-Os builds são gerados na pasta `dist/` com o manifest correto para cada navegador.
-
-## Plataformas Suportadas
-
-- **Google Meet** - Captura legendas automáticas
-- **Microsoft Teams** - Captura legendas/transcrição
-- **Zoom** - Captura legendas da reunião  
-- **YouTube** - Captura legendas de vídeos
-
-## Como Usar
-
-1. Abra uma reunião ou vídeo em uma plataforma suportada
-2. Ative as legendas na plataforma (botão CC)
-3. Clique no ícone da extensão e em "Abrir Painel de Tradução"
-4. O VLibras traduzirá automaticamente as legendas para Libras
-
-## Diferenças entre Navegadores
-
-| Recurso | Chrome/Edge | Firefox |
-|---------|-------------|---------|
-| Painel lateral | Side Panel (nativo) | Sidebar Action |
-| Background | Service Worker | Background Script |
-| Manifest | manifest.json | manifest-firefox.json |
-
-## Estrutura do Projeto
-
-```
-├── manifest.json              # Manifest para Chrome/Edge
-├── manifest-firefox.json      # Manifest para Firefox
+├── manifest.json              # Manifest for Chrome/Edge
+├── manifest-firefox.json      # Manifest for Firefox
 ├── background.js              # Service Worker / Background Script
-├── contentScript.js           # Script injetado nas páginas
-├── popup.html / popup.js      # Popup da extensão
-├── styles.css                 # Estilos do content script
-├── build.js                   # Script de build multi-navegador
-├── icons/                     # Ícones da extensão
-├── sidepanel/                 # Painel lateral
+├── contentScript.js           # Script injected into pages
+├── popup.html / popup.js      # Extension popup
+├── styles.css                 # Content script styles
+├── build.js                   # Multi-browser build script
+├── icons/                     # Extension icons
+├── sidepanel/                 # Side panel
 │   ├── sidepanel.html
 │   ├── sidepanel.js
 │   └── sidepanel.css
-└── vlibras-widget/            # Widget VLibras (iframe)
+└── vlibras-widget/            # VLibras widget (iframe)
     ├── widget.html
     └── widget.js
 ```
 
 ---
-
-Desenvolvido com ❤️ para acessibilidade | Powered by [VLibras](https://www.vlibras.gov.br/)
+Built with ❤️ for accessibility | Powered by [VLibras](https://www.vlibras.gov.br/)
